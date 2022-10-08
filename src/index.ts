@@ -1,29 +1,44 @@
-import * as parser from '@babel/parser'
-import * as fs from 'fs';
+import { NodePath } from 'babel-traverse';
+import { callExpression, expressionStatement, FunctionDeclaration, identifier, Identifier, numericLiteral, stringLiteral } from '@babel/types';
 
-const testCode = fs.readFileSync('./sample.js', 'utf8');
+const appendIdentifierQuery = (path: NodePath<FunctionDeclaration>, id: Identifier) => {
+    const { node } = path;
 
-const res = parser.parse(testCode, {
-    sourceType: 'module',
-    sourceFilename: 'performanceLogger.js',
-    plugins: [
-        'flow',
-    ]
-});
+    const call = callExpression(identifier('autotype.logType'), [
+        stringLiteral(id.name),
+        id,
+        numericLiteral(node.loc!.start.line),
+    ]);
+
+    const statement = expressionStatement(call);
+
+    node.body.body.unshift(statement);
+};
 
 const visitor = {
-    Flow(path: any) {
-        console.log('Flow declaration:', path);
+    FunctionDeclaration(path: NodePath<FunctionDeclaration>) {
+        console.log('Function declaration:', path.getSource());
+        for (const param of path.node.params) {
+            if (param.type === 'Identifier') {
+                const identifier = <Identifier>param;
+                appendIdentifierQuery(path, identifier);
+            } else {
+                console.log('unknown param:', param);
+            }
+        }
     },
-    FunctionDeclaration(path: any) {
-        console.log('Function:', path);
-    }
-}
-console.log(res);
+    /*FunctionExpression(path: NodePath) {
+        console.log('Function expression:', path.getSource());
+    },
+    Identifier(path: NodePath) {
+        console.log('Identifier:', path.getSource());
+    },
+    DeclareFunction(path: NodePath) {
+        console.log('Declare function:', path.getSource());
+    },*/
+};
 
-fs.writeFileSync('res.json', JSON.stringify(res), 'utf8');
-
-module.exports = function({types: t}: any) {
+export default function ({ types: t }: any) {
     return {
         visitor
     }
